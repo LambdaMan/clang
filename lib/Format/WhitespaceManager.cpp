@@ -351,6 +351,9 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
   // Whether a matching token has been found on the current line.
   bool FoundMatchOnLine = false;
 
+  // Keep track of the lowest column index encountered in a sequence.
+  unsigned LowestColumn = UINT_MAX;
+
   // Aligns a sequence of matching tokens, on the MinColumn column.
   //
   // Sequences start from the first matching token to align, and end at the
@@ -359,13 +362,21 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
   // We need to adjust the StartOfTokenColumn of each Change that is on a line
   // containing any matching token to be aligned and located after such token.
   auto AlignCurrentSequence = [&] {
-    if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
+    if (StartOfSequence > 0 && StartOfSequence < EndOfSequence) {
+      if (Style.AlignOnTabStop && LowestColumn < MinColumn) {
+        // Roundup MinColumn to the nearest multiple of TabWidth
+        MinColumn = ((MinColumn + Style.TabWidth - 1) / Style.TabWidth) *
+                    Style.TabWidth;
+      }
       AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
                          Changes);
+    }
+     
     MinColumn = 0;
     MaxColumn = UINT_MAX;
     StartOfSequence = 0;
     EndOfSequence = 0;
+    LowestColumn = UINT_MAX;
   };
 
   unsigned i = StartAt;
@@ -422,6 +433,7 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
     MinColumn = std::max(MinColumn, ChangeMinColumn);
     MaxColumn = std::min(MaxColumn, ChangeMaxColumn);
+    LowestColumn = std::min(LowestColumn, ChangeMinColumn);
   }
 
   EndOfSequence = i;
@@ -610,6 +622,7 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
 void WhitespaceManager::alignTrailingComments() {
   unsigned MinColumn = 0;
   unsigned MaxColumn = UINT_MAX;
+  unsigned LowestColumn = UINT_MAX;
   unsigned StartOfSequence = 0;
   bool BreakBeforeNext = false;
   unsigned Newlines = 0;
@@ -661,9 +674,15 @@ void WhitespaceManager::alignTrailingComments() {
       }
     }
     if (!Style.AlignTrailingComments || FollowsRBraceInColumn0) {
+      if (Style.AlignOnTabStop && LowestColumn < MinColumn) {
+        // Roundup MinColumn to the nearest multiple of TabWidth
+        MinColumn = ((MinColumn + Style.TabWidth - 1) / Style.TabWidth) *
+                    Style.TabWidth;
+      }
       alignTrailingComments(StartOfSequence, i, MinColumn);
       MinColumn = ChangeMinColumn;
       MaxColumn = ChangeMinColumn;
+      LowestColumn = ChangeMinColumn;
       StartOfSequence = i;
     } else if (BreakBeforeNext || Newlines > 1 ||
                (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn) ||
@@ -672,19 +691,31 @@ void WhitespaceManager::alignTrailingComments() {
                (Changes[i].NewlinesBefore == 1 && i > 0 &&
                 !Changes[i - 1].IsTrailingComment) ||
                WasAlignedWithStartOfNextLine) {
+      if (Style.AlignOnTabStop && LowestColumn < MinColumn) {
+        // Roundup MinColumn to the nearest multiple of TabWidth
+        MinColumn = ((MinColumn + Style.TabWidth - 1) / Style.TabWidth) *
+                    Style.TabWidth;
+      }
       alignTrailingComments(StartOfSequence, i, MinColumn);
       MinColumn = ChangeMinColumn;
       MaxColumn = ChangeMaxColumn;
+      LowestColumn = ChangeMinColumn;
       StartOfSequence = i;
     } else {
       MinColumn = std::max(MinColumn, ChangeMinColumn);
       MaxColumn = std::min(MaxColumn, ChangeMaxColumn);
+      LowestColumn = std::min(LowestColumn, ChangeMinColumn);
     }
     BreakBeforeNext = (i == 0) || (Changes[i].NewlinesBefore > 1) ||
                       // Never start a sequence with a comment at the beginning
                       // of the line.
                       (Changes[i].NewlinesBefore == 1 && StartOfSequence == i);
     Newlines = 0;
+  }
+  if (Style.AlignOnTabStop && LowestColumn < MinColumn) {
+    // Roundup MinColumn to the nearest multiple of TabWidth
+    MinColumn =
+        ((MinColumn + Style.TabWidth - 1) / Style.TabWidth) * Style.TabWidth;
   }
   alignTrailingComments(StartOfSequence, Changes.size(), MinColumn);
 }

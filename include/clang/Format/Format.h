@@ -148,6 +148,10 @@ struct FormatStyle {
   /// Options for aligning backslashes in escaped newlines.
   EscapedNewlineAlignmentStyle AlignEscapedNewlines;
 
+  /// \brief Whenever tokens must be aligned, force the alignment to happen on a
+  /// tab stop.
+  bool AlignOnTabStop;
+
   /// If ``true``, horizontally align operands of binary and ternary
   /// expressions.
   ///
@@ -1944,6 +1948,7 @@ struct FormatStyle {
            AlignConsecutiveDeclarations == R.AlignConsecutiveDeclarations &&
            AlignEscapedNewlines == R.AlignEscapedNewlines &&
            AlignOperands == R.AlignOperands &&
+           AlignOnTabStop == R.AlignOnTabStop &&
            AlignTrailingComments == R.AlignTrailingComments &&
            AllowAllArgumentsOnNextLine == R.AllowAllArgumentsOnNextLine &&
            AllowAllConstructorInitializersOnNextLine ==
